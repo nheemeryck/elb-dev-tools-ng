@@ -1,0 +1,16 @@
+[package]
+name = "elb-dev-tools-ng"
+version = "0.1.1"
+authors = ["Eric Le Bihan <eric.le.bihan.dev@free.fr>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+chrono = "0.4"
+regex = "^1.0"
+structopt = { version = "0.3", default-features = false }
+
+[[bin]]
+name = "nevez"
+path = "src/nevez.rs"
