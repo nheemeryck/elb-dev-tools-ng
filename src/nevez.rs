@@ -264,21 +264,9 @@ impl Formatter {
 
     /// Format commits as changelog snippet
     fn format(&self, commits: &ClassifiedCommits, tag: &str) -> String {
-        let additions: Vec<String> = commits
-            .additions
-            .iter()
-            .filter_map(|&c| self.shortener.shorten(c))
-            .collect();
-        let changes: Vec<String> = commits
-            .changes
-            .iter()
-            .filter_map(|&c| self.shortener.shorten(c))
-            .collect();
-        let fixes: Vec<String> = commits
-            .fixes
-            .iter()
-            .filter_map(|&c| self.shortener.shorten(c))
-            .collect();
+        let additions = self.shorten(&commits.additions);
+        let changes = self.shorten(&commits.changes);
+        let fixes = self.shorten(&commits.fixes);
         let timestamp: DateTime<Utc> = Utc::now();
         let mut text =
             format!("## [{}] - {}\n", tag, timestamp.format("%Y-%m-%d"));
@@ -286,6 +274,13 @@ impl Formatter {
         text.push_str(&format_md_section(3, "Changed", &changes));
         text.push_str(&format_md_section(3, "Fixed", &fixes));
         text
+    }
+
+    fn shorten(&self, commits: &[&Commit]) -> Vec<String> {
+        commits
+            .iter()
+            .filter_map(|&c| self.shortener.shorten(c))
+            .collect()
     }
 }
 
