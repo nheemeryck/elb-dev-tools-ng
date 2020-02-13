@@ -277,10 +277,12 @@ impl Formatter {
     }
 
     fn shorten(&self, commits: &[&Commit]) -> Vec<String> {
-        commits
+        let mut commits: Vec<String> = commits
             .iter()
             .filter_map(|&c| self.shortener.shorten(c))
-            .collect()
+            .collect();
+        commits.sort();
+        commits
     }
 }
 
