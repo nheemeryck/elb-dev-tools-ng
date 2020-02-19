@@ -14,6 +14,7 @@ use std::fs::{rename, File};
 use std::io::{stdout, BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::str;
 use structopt::StructOpt;
 
 #[derive(Debug, StructOpt)]
@@ -332,7 +333,7 @@ fn find_latest_tag<P: AsRef<Path>>(path: P) -> Result<String, Box<dyn Error>> {
         return Err(From::from("git-describe failed".to_string()));
     }
 
-    let tag = String::from_utf8(output.stdout)?.trim_end().to_string();
+    let tag = str::from_utf8(&output.stdout)?.trim_end().to_string();
     Ok(tag)
 }
 
