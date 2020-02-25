@@ -6,6 +6,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //
 
+use dirs;
 use failure::format_err;
 use handlebars::{no_escape, Handlebars};
 use regex::Regex;
@@ -261,6 +262,11 @@ impl MailDataBuilder {
         self
     }
 
+    fn signature(&mut self, text: &str) -> &mut Self {
+        self.data.insert("signature".to_string(), text.to_string());
+        self
+    }
+
     fn extra(&mut self, data: HashMap<String, String>) -> &mut Self {
         self.data.extend(data);
         self
@@ -344,6 +350,15 @@ fn add_recipients_from_path<P: AsRef<Path>>(
     Ok(())
 }
 
+fn get_signature() -> Option<String> {
+    if let Some(mut path) = dirs::home_dir() {
+        path.push(".signature");
+        let text = fs::read_to_string(&path).ok()?;
+        return Some(text);
+    }
+    None
+}
+
 fn main() -> Result<(), Box<dyn Error>> {
     let mut opts = KemennOpts::from_args();
     let emitter = opts
@@ -363,6 +378,9 @@ fn main() -> Result<(), Box<dyn Error>> {
         .emitter(&emitter)
         .recipients(&opts.recipients)
         .info(&info);
+    if let Some(signature) = get_signature() {
+        builder.signature(&signature);
+    }
     if let Some(parameters) = opts.parameters {
         let parameters: HashMap<String, String> = parameters
             .iter()
