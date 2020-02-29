@@ -94,6 +94,14 @@ struct KemennOpts {
     )]
     parameters: Option<Vec<String>>,
 
+    #[structopt(
+        short = "R",
+        long = "release",
+        help = "Release to announce",
+        value_name = "TAG"
+    )]
+    release: Option<String>,
+
     #[structopt(help = "Repository")]
     repository: PathBuf,
 
@@ -135,7 +143,9 @@ fn get_repo_url<P: AsRef<Path>>(path: P) -> Result<String, Box<dyn Error>> {
     run_command_or(&mut cmd, format_err!("git config failed").into())
 }
 
-fn get_repo_version<P: AsRef<Path>>(path: P) -> Result<String, Box<dyn Error>> {
+fn get_repo_latest_version<P: AsRef<Path>>(
+    path: P,
+) -> Result<String, Box<dyn Error>> {
     let mut cmd = Command::new("git");
     cmd.arg("--git-dir")
         .arg(path.as_ref())
@@ -198,11 +208,17 @@ impl Project {
     }
 
     /// Explore to get latest release information
-    fn latest_release(&self) -> Result<ReleaseInfo, Box<dyn Error>> {
+    fn release_info(
+        &self,
+        version: &Option<String>,
+    ) -> Result<ReleaseInfo, Box<dyn Error>> {
         let mut gitdir = PathBuf::from(&self.path);
         gitdir.push(".git");
         let url = get_repo_url(&gitdir)?;
-        let version = get_repo_version(&gitdir)?;
+        let version = match version.as_ref() {
+            Some(version) => version.clone(),
+            None => get_repo_latest_version(&gitdir)?,
+        };
         let project = get_project_name(&url)
             .ok_or(format_err!("Failed to extract project name from URL"))?;
         let mut path = PathBuf::from(&self.path);
@@ -372,7 +388,8 @@ fn main() -> Result<(), Box<dyn Error>> {
     if let Some(changelog) = opts.changelog {
         project.set_changelog(&changelog);
     }
-    let info = project.latest_release()?;
+
+    let info = project.release_info(&opts.release)?;
     let mut builder = MailDataBuilder::new();
     builder
         .emitter(&emitter)
