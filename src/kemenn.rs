@@ -15,7 +15,7 @@ use std::env;
 use std::error::Error;
 use std::fs;
 use std::fs::File;
-use std::io::{BufRead, BufReader};
+use std::io::{self, BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::str;
@@ -415,7 +415,9 @@ fn main() -> Result<(), Box<dyn Error>> {
     if let Some(output) = opts.output {
         fs::write(output, text)?;
     } else {
-        print!("{}", text);
+        let stdout = io::stdout();
+        let mut stdout = stdout.lock();
+        stdout.write_all(text.as_bytes())?;
     }
     Ok(())
 }
