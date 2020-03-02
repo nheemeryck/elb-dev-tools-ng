@@ -212,8 +212,7 @@ impl Project {
         &self,
         version: &Option<String>,
     ) -> Result<ReleaseInfo, Box<dyn Error>> {
-        let mut gitdir = PathBuf::from(&self.path);
-        gitdir.push(".git");
+        let gitdir = self.path.join(".git");
         let url = get_repo_url(&gitdir)?;
         let version = match version.as_ref() {
             Some(version) => version.clone(),
