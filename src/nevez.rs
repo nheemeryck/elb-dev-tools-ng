@@ -9,7 +9,6 @@
 use chrono::{DateTime, FixedOffset, Utc};
 use regex::Regex;
 use std::error::Error;
-use std::ffi::OsString;
 use std::fs::{rename, File};
 use std::io::{stdout, BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
@@ -362,8 +361,7 @@ fn update_changelog<P: AsRef<Path>>(
     let pat = Regex::new(r"^##\s+\[[\w.]+\]\s+-\s+[\d]{4}-[\d]{2}-[\d]{2}$")?;
     let input = File::open(&changelog)?;
     let reader = BufReader::new(input);
-    let mut tmp = OsString::from(&changelog.as_ref());
-    tmp.push(".tmp");
+    let tmp = changelog.as_ref().join(".tmp");
     let mut writer: Box<dyn Write> = match in_place {
         true => {
             let file = File::create(&tmp)?;
@@ -391,8 +389,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let opts = NevezOptions::from_args();
     let cwd = std::env::current_dir()?;
     let repo = opts.repository.unwrap_or(cwd);
-    let mut gitdir = repo.clone();
-    gitdir.push(".git");
+    let gitdir = repo.join(".git");
     let last_tag = find_latest_tag(&gitdir)?;
     let old_tag = opts.old_tag.unwrap_or(last_tag);
     let text = generate_changelog(gitdir, &old_tag, &opts.new_tag)?;
