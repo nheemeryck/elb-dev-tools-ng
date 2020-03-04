@@ -29,7 +29,7 @@ struct ZrdmOpts {
     tarball: PathBuf,
 }
 
-fn main() -> Result<(), failure::Error> {
+fn run() -> Result<(), failure::Error> {
     let opts = ZrdmOpts::from_args();
     let file = File::open(&opts.tarball)?;
     let mut archive = Archive::new(GzDecoder::new(file));
@@ -74,4 +74,15 @@ fn main() -> Result<(), failure::Error> {
             fs::remove_file(&path)
                 .map_err(|e| format_err!("Failed to remove file ({})", e))
         })
+}
+
+fn main() {
+    let status = match run() {
+        Ok(_) => 0,
+        Err(e) => {
+            eprintln!("Error: {}", e);
+            1
+        }
+    };
+    std::process::exit(status)
 }
