@@ -9,6 +9,7 @@
 use chrono::{DateTime, FixedOffset, Utc};
 use regex::Regex;
 use std::error::Error;
+use std::ffi::OsString;
 use std::fs::{rename, File};
 use std::io::{stdout, BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
@@ -361,7 +362,8 @@ fn update_changelog<P: AsRef<Path>>(
     let pat = Regex::new(r"^##\s+\[[\w.]+\]\s+-\s+[\d]{4}-[\d]{2}-[\d]{2}$")?;
     let input = File::open(&changelog)?;
     let reader = BufReader::new(input);
-    let tmp = changelog.as_ref().join(".tmp");
+    let mut tmp = OsString::from(&changelog.as_ref());
+    tmp.push(".tmp");
     let mut writer: Box<dyn Write> = match in_place {
         true => {
             let file = File::create(&tmp)?;
