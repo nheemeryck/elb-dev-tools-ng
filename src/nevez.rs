@@ -387,7 +387,7 @@ fn update_changelog<P: AsRef<Path>>(
     Ok(())
 }
 
-fn main() -> Result<(), Box<dyn Error>> {
+fn run() -> Result<(), Box<dyn Error>> {
     let opts = NevezOptions::from_args();
     let cwd = std::env::current_dir()?;
     let repo = opts.repository.unwrap_or(cwd);
@@ -398,4 +398,15 @@ fn main() -> Result<(), Box<dyn Error>> {
     let mut changelog = repo.clone();
     changelog.push(opts.changelog);
     update_changelog(changelog, &text, opts.in_place)
+}
+
+fn main() {
+    let status = match run() {
+        Ok(_) => 0,
+        Err(e) => {
+            eprintln!("Error: {}", e);
+            1
+        }
+    };
+    std::process::exit(status)
 }
