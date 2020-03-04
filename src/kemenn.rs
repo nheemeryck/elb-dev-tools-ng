@@ -374,7 +374,7 @@ fn get_signature() -> Option<String> {
     None
 }
 
-fn main() -> Result<(), Box<dyn Error>> {
+fn run() -> Result<(), Box<dyn Error>> {
     let mut opts = KemennOpts::from_args();
     let emitter = opts
         .emitter
@@ -419,4 +419,15 @@ fn main() -> Result<(), Box<dyn Error>> {
         stdout.write_all(text.as_bytes())?;
     }
     Ok(())
+}
+
+fn main() {
+    let status = match run() {
+        Ok(_) => 0,
+        Err(e) => {
+            eprintln!("Error: {}", e);
+            1
+        }
+    };
+    std::process::exit(status)
 }
