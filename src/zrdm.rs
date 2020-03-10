@@ -6,7 +6,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //
 
-use failure::{self, format_err};
+use anyhow::{anyhow, Result};
 use flate2::read::GzDecoder;
 use std::fs::{self, File};
 use std::io;
@@ -29,7 +29,7 @@ struct ZrdmOpts {
     tarball: PathBuf,
 }
 
-fn run() -> Result<(), failure::Error> {
+fn main() -> Result<()> {
     let opts = ZrdmOpts::from_args();
     let file = File::open(&opts.tarball)?;
     let mut archive = Archive::new(GzDecoder::new(file));
@@ -48,41 +48,30 @@ fn run() -> Result<(), failure::Error> {
 
     let path = candidates
         .next()
-        .ok_or(format_err!("No README found"))
+        .ok_or(anyhow!("No README found"))
         .and_then(|mut entry| {
             if let Ok(path) = entry.path() {
                 let path: PathBuf = path.components().skip(1).collect();
                 let path = tmpdir.path().join(path);
                 entry
                     .unpack(&path)
-                    .map_err(|e| format_err!("Failed to unpack {}", e))?;
+                    .map_err(|e| anyhow!("Failed to unpack {}", e))?;
                 Ok(path)
             } else {
-                Err(format_err!("Invalid path"))
+                Err(anyhow!("Invalid path"))
             }
         })?;
 
     File::open(&path)
-        .map_err(|e| format_err!("Failed to open ({})", e))
+        .map_err(|e| anyhow!("Failed to open ({})", e))
         .and_then(|mut f| {
             let stdout = io::stdout();
             let mut stdout = stdout.lock();
             io::copy(&mut f, &mut stdout)
-                .map_err(|e| format_err!("Failed to output ({})", e))
+                .map_err(|e| anyhow!("Failed to output ({})", e))
         })
         .and_then(|_| {
             fs::remove_file(&path)
-                .map_err(|e| format_err!("Failed to remove file ({})", e))
+                .map_err(|e| anyhow!("Failed to remove file ({})", e))
         })
-}
-
-fn main() {
-    let status = match run() {
-        Ok(_) => 0,
-        Err(e) => {
-            eprintln!("Error: {}", e);
-            1
-        }
-    };
-    std::process::exit(status)
 }
