@@ -6,9 +6,9 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //
 
+use anyhow::{anyhow, Result};
 use chrono::{DateTime, FixedOffset, Utc};
 use regex::Regex;
-use std::error::Error;
 use std::ffi::OsString;
 use std::fs::{rename, File};
 use std::io::{stdout, BufRead, BufReader, Write};
@@ -78,7 +78,7 @@ struct CommitLogParser {
 
 impl CommitLogParser {
     /// Create a new commit log parser
-    fn new() -> Result<Self, Box<dyn Error>> {
+    fn new() -> Result<Self> {
         let pat_author = Regex::new(r"^Author:\s+(.+)<(.+)>$")?;
         let pat_date = Regex::new(r"^Date:\s+(.+)$")?;
         Ok(CommitLogParser {
@@ -137,7 +137,7 @@ struct ClassifiedCommits<'a> {
 
 impl CommitClassifier {
     /// Create a new classifier
-    fn new() -> Result<Self, Box<dyn Error>> {
+    fn new() -> Result<Self> {
         let add_patterns = vec![
             Regex::new(r"^([Aa]dd(?:ed)?|[Nn]ew)\s+.+$")?,
             Regex::new(r"^.+:\s+([Aa]dd(?:ed)?|[Nn]ew)\s+.+$")?,
@@ -207,7 +207,7 @@ struct CommitShortener {
 
 impl CommitShortener {
     /// Create a new shortener
-    fn new() -> Result<Self, Box<dyn Error>> {
+    fn new() -> Result<Self> {
         let bug_patterns = vec![
             Regex::new(r"^Bug\s[\d]+:.*")?,
             Regex::new(r"^JIRA:\s[\w]+")?,
@@ -288,10 +288,7 @@ impl Formatter {
 }
 
 /// Collect commits since `tag` in repository at `path`
-fn collect_commits<P: AsRef<Path>>(
-    path: P,
-    tag: &str,
-) -> Result<Vec<Commit>, Box<dyn Error>> {
+fn collect_commits<P: AsRef<Path>>(path: P, tag: &str) -> Result<Vec<Commit>> {
     let output = Command::new("git")
         .arg("--git-dir")
         .arg(path.as_ref())
@@ -305,7 +302,7 @@ fn collect_commits<P: AsRef<Path>>(
         .output()?;
 
     if !output.status.success() {
-        return Err(From::from("git-log failed".to_string()));
+        return Err(anyhow!("git-log failed"));
     }
 
     let text = String::from_utf8(output.stdout)?;
@@ -320,7 +317,7 @@ fn collect_commits<P: AsRef<Path>>(
 }
 
 /// Find the latest annotated tag
-fn find_latest_tag<P: AsRef<Path>>(path: P) -> Result<String, Box<dyn Error>> {
+fn find_latest_tag<P: AsRef<Path>>(path: P) -> Result<String> {
     let output = Command::new("git")
         .arg("--git-dir")
         .arg(path.as_ref())
@@ -330,7 +327,7 @@ fn find_latest_tag<P: AsRef<Path>>(path: P) -> Result<String, Box<dyn Error>> {
         .output()?;
 
     if !output.status.success() {
-        return Err(From::from("git-describe failed".to_string()));
+        return Err(anyhow!("git-describe failed"));
     }
 
     let tag = str::from_utf8(&output.stdout)?.trim_end().to_string();
@@ -342,7 +339,7 @@ fn generate_changelog<P: AsRef<Path>>(
     repository: P,
     old_tag: &str,
     new_tag: &str,
-) -> Result<String, Box<dyn Error>> {
+) -> Result<String> {
     let commits = collect_commits(repository, old_tag)?;
     let classifier = CommitClassifier::new()?;
     let commits = classifier.classify(&commits);
@@ -357,7 +354,7 @@ fn update_changelog<P: AsRef<Path>>(
     changelog: P,
     text: &str,
     in_place: bool,
-) -> Result<(), Box<dyn Error>> {
+) -> Result<()> {
     let mut inserted = false;
     let pat = Regex::new(r"^##\s+\[[\w.]+\]\s+-\s+[\d]{4}-[\d]{2}-[\d]{2}$")?;
     let input = File::open(&changelog)?;
@@ -387,7 +384,7 @@ fn update_changelog<P: AsRef<Path>>(
     Ok(())
 }
 
-fn run() -> Result<(), Box<dyn Error>> {
+fn main() -> Result<()> {
     let opts = NevezOptions::from_args();
     let cwd = std::env::current_dir()?;
     let repo = opts.repository.unwrap_or(cwd);
@@ -398,15 +395,4 @@ fn run() -> Result<(), Box<dyn Error>> {
     let mut changelog = repo.clone();
     changelog.push(opts.changelog);
     update_changelog(changelog, &text, opts.in_place)
-}
-
-fn main() {
-    let status = match run() {
-        Ok(_) => 0,
-        Err(e) => {
-            eprintln!("Error: {}", e);
-            1
-        }
-    };
-    std::process::exit(status)
 }
