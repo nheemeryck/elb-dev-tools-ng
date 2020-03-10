@@ -6,13 +6,12 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //
 
+use anyhow::{anyhow, Context, Result};
 use dirs;
-use failure::format_err;
 use handlebars::{no_escape, Handlebars};
 use regex::Regex;
 use std::collections::HashMap;
 use std::env;
-use std::error::Error;
 use std::fs;
 use std::fs::File;
 use std::io::{self, BufRead, BufReader, Write};
@@ -118,21 +117,18 @@ struct ReleaseInfo {
     changelog: String,
 }
 
-fn run_command_or(
-    command: &mut Command,
-    error: Box<dyn Error>,
-) -> Result<String, Box<dyn Error>> {
+fn run_command_or(command: &mut Command, error: &str) -> Result<String> {
     let output = command.output()?;
 
     if !output.status.success() {
-        return Err(error);
+        return Err(anyhow!(error.to_string()));
     }
 
     let text = str::from_utf8(&output.stdout)?.trim_end().to_string();
     Ok(text)
 }
 
-fn get_repo_url<P: AsRef<Path>>(path: P) -> Result<String, Box<dyn Error>> {
+fn get_repo_url<P: AsRef<Path>>(path: P) -> Result<String> {
     let mut cmd = Command::new("git");
     cmd.arg("--git-dir")
         .arg(path.as_ref())
@@ -140,12 +136,10 @@ fn get_repo_url<P: AsRef<Path>>(path: P) -> Result<String, Box<dyn Error>> {
         .arg("--get")
         .arg("remote.origin.url");
 
-    run_command_or(&mut cmd, format_err!("git config failed").into())
+    run_command_or(&mut cmd, "git config failed")
 }
 
-fn get_repo_latest_version<P: AsRef<Path>>(
-    path: P,
-) -> Result<String, Box<dyn Error>> {
+fn get_repo_latest_version<P: AsRef<Path>>(path: P) -> Result<String> {
     let mut cmd = Command::new("git");
     cmd.arg("--git-dir")
         .arg(path.as_ref())
@@ -153,13 +147,13 @@ fn get_repo_latest_version<P: AsRef<Path>>(
         .arg("--abbrev=0")
         .arg("--tags");
 
-    run_command_or(&mut cmd, format_err!("git describe failed").into())
+    run_command_or(&mut cmd, "git describe failed")
 }
 
 fn get_repo_changelog<P: AsRef<Path>>(
     path: P,
     version: &str,
-) -> Result<String, Box<dyn Error>> {
+) -> Result<String> {
     let pattern =
         format!(r"^##\s+\[{}]\s+-\s+[\d]{{4}}-[\d]{{2}}-[\d]{{2}}$", version);
     let pattern = Regex::new(pattern.as_str())?;
@@ -208,10 +202,7 @@ impl Project {
     }
 
     /// Explore to get latest release information
-    fn release_info(
-        &self,
-        version: &Option<String>,
-    ) -> Result<ReleaseInfo, Box<dyn Error>> {
+    fn release_info(&self, version: &Option<String>) -> Result<ReleaseInfo> {
         let gitdir = self.path.join(".git");
         let url = get_repo_url(&gitdir)?;
         let version = match version.as_ref() {
@@ -219,7 +210,7 @@ impl Project {
             None => get_repo_latest_version(&gitdir)?,
         };
         let project = get_project_name(&url)
-            .ok_or(format_err!("Failed to extract project name from URL"))?;
+            .ok_or(anyhow!("Failed to extract project name from URL"))?;
         let mut path = PathBuf::from(&self.path);
         path.push(&self.changelog);
         let changelog = get_repo_changelog(&path, &version)?;
@@ -308,10 +299,7 @@ impl MailBuilder {
         self
     }
 
-    fn build(
-        self,
-        data: &HashMap<String, String>,
-    ) -> Result<String, Box<dyn Error>> {
+    fn build(self, data: &HashMap<String, String>) -> Result<String> {
         let template = self
             .template
             .as_ref()
@@ -355,7 +343,7 @@ fn parse_parameter(s: &str) -> Option<(String, String)> {
 fn add_recipients_from_path<P: AsRef<Path>>(
     recipients: &mut Vec<String>,
     path: P,
-) -> Result<(), Box<dyn Error>> {
+) -> Result<()> {
     let input = File::open(path)?;
     let reader = BufReader::new(input);
     for line in reader.lines() {
@@ -374,21 +362,24 @@ fn get_signature() -> Option<String> {
     None
 }
 
-fn run() -> Result<(), Box<dyn Error>> {
+fn main() -> Result<()> {
     let mut opts = KemennOpts::from_args();
     let emitter = opts
         .emitter
         .or_else(get_user_email)
-        .ok_or(format_err!("Missing emitter email"))?;
+        .ok_or(anyhow!("Missing emitter email"))?;
     if let Some(input) = opts.input {
-        add_recipients_from_path(&mut opts.recipients, input)?;
+        add_recipients_from_path(&mut opts.recipients, input)
+            .context("Failed to add recipients from input")?;
     }
     let mut project = Project::new(&opts.repository);
     if let Some(changelog) = opts.changelog {
         project.set_changelog(&changelog);
     }
 
-    let info = project.release_info(&opts.release)?;
+    let info = project
+        .release_info(&opts.release)
+        .context("Failed to get release info")?;
     let mut builder = MailDataBuilder::new();
     builder
         .emitter(&emitter)
@@ -407,27 +398,17 @@ fn run() -> Result<(), Box<dyn Error>> {
     let data = builder.build();
     let mut builder = MailBuilder::new();
     if let Some(template) = opts.template {
-        let text = fs::read_to_string(template)?;
+        let text =
+            fs::read_to_string(template).context("Failed to read template")?;
         builder.template(&text);
     }
     let text = builder.build(&data)?;
     if let Some(output) = opts.output {
-        fs::write(output, text)?;
+        fs::write(output, text).context("Failed to write output")?;
     } else {
         let stdout = io::stdout();
         let mut stdout = stdout.lock();
         stdout.write_all(text.as_bytes())?;
     }
     Ok(())
-}
-
-fn main() {
-    let status = match run() {
-        Ok(_) => 0,
-        Err(e) => {
-            eprintln!("Error: {}", e);
-            1
-        }
-    };
-    std::process::exit(status)
 }
