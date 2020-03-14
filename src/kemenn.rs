@@ -8,6 +8,7 @@
 
 use anyhow::{anyhow, Context, Result};
 use dirs;
+use elb_dev_tools_ng::run_command_or;
 use handlebars::{no_escape, Handlebars};
 use regex::Regex;
 use std::collections::HashMap;
@@ -115,17 +116,6 @@ struct ReleaseInfo {
     url: String,
     version: String,
     changelog: String,
-}
-
-fn run_command_or(command: &mut Command, error: &str) -> Result<String> {
-    let output = command.output()?;
-
-    if !output.status.success() {
-        return Err(anyhow!(error.to_string()));
-    }
-
-    let text = str::from_utf8(&output.stdout)?.trim_end().to_string();
-    Ok(text)
 }
 
 fn get_repo_url<P: AsRef<Path>>(path: P) -> Result<String> {
