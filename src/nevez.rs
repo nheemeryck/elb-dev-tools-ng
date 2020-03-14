@@ -6,8 +6,9 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //
 
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 use chrono::{DateTime, FixedOffset, Utc};
+use elb_dev_tools_ng::run_command_or;
 use regex::Regex;
 use std::ffi::OsString;
 use std::fs::{rename, File};
@@ -289,8 +290,8 @@ impl Formatter {
 
 /// Collect commits since `tag` in repository at `path`
 fn collect_commits<P: AsRef<Path>>(path: P, tag: &str) -> Result<Vec<Commit>> {
-    let output = Command::new("git")
-        .arg("--git-dir")
+    let mut cmd = Command::new("git");
+    cmd.arg("--git-dir")
         .arg(path.as_ref())
         .arg("log")
         .arg("--date=rfc2822")
@@ -298,14 +299,9 @@ fn collect_commits<P: AsRef<Path>>(path: P, tag: &str) -> Result<Vec<Commit>> {
         .arg("--invert-grep")
         .arg("--grep")
         .arg("^Squash")
-        .arg(format!("{}..HEAD", tag))
-        .output()?;
+        .arg(format!("{}..HEAD", tag));
 
-    if !output.status.success() {
-        return Err(anyhow!("git-log failed"));
-    }
-
-    let text = String::from_utf8(output.stdout)?;
+    let text = run_command_or(&mut cmd, "git-log failed")?;
     let parser = CommitLogParser::new()?;
     let pattern = Regex::new(r"(?x)commit ")?;
     let commits = pattern
@@ -318,20 +314,13 @@ fn collect_commits<P: AsRef<Path>>(path: P, tag: &str) -> Result<Vec<Commit>> {
 
 /// Find the latest annotated tag
 fn find_latest_tag<P: AsRef<Path>>(path: P) -> Result<String> {
-    let output = Command::new("git")
-        .arg("--git-dir")
+    let mut cmd = Command::new("git");
+    cmd.arg("--git-dir")
         .arg(path.as_ref())
         .arg("describe")
         .arg("--abbrev=0")
-        .arg("--tags")
-        .output()?;
-
-    if !output.status.success() {
-        return Err(anyhow!("git-describe failed"));
-    }
-
-    let tag = str::from_utf8(&output.stdout)?.trim_end().to_string();
-    Ok(tag)
+        .arg("--tags");
+    run_command_or(&mut cmd, "git-describe failed")
 }
 
 /// Generate a changelog
