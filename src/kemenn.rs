@@ -175,6 +175,18 @@ fn get_project_name(url: &str) -> Option<String> {
     Some(name)
 }
 
+fn extract_semantic(version: &str) -> Result<&str> {
+    let pattern = Regex::new(r"([^.]+)?([\d]+\.[\d]+\.[\d].*)")?;
+    pattern
+        .captures(version)
+        .and_then(|caps| match caps.len() {
+            1 | 2 => Some(version),
+            3 => caps.get(2).map(|m| m.as_str()),
+            _ => None,
+        })
+        .ok_or(anyhow!("Invalid version"))
+}
+
 /// Represent a project
 #[derive(Debug)]
 struct Project {
@@ -199,11 +211,12 @@ impl Project {
             Some(version) => version.clone(),
             None => get_repo_latest_version(&gitdir)?,
         };
+        let sem_version = extract_semantic(&version)?;
         let project = get_project_name(&url)
             .ok_or(anyhow!("Failed to extract project name from URL"))?;
         let mut path = PathBuf::from(&self.path);
         path.push(&self.changelog);
-        let changelog = get_repo_changelog(&path, &version)?;
+        let changelog = get_repo_changelog(&path, sem_version)?;
         let info = ReleaseInfo {
             project: project,
             url: url,
