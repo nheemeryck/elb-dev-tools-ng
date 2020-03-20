@@ -77,6 +77,13 @@ struct KemennOpts {
     input: Option<PathBuf>,
 
     #[structopt(
+        short = "l",
+        long = "loose",
+        help = "Allow non-semantic version"
+    )]
+    loose: bool,
+
+    #[structopt(
         short = "o",
         long = "output",
         help = "Path to output file",
@@ -192,6 +199,7 @@ fn extract_semantic(version: &str) -> Result<&str> {
 struct Project {
     path: PathBuf,
     changelog: PathBuf,
+    loose: bool,
 }
 
 impl Project {
@@ -200,6 +208,7 @@ impl Project {
         Project {
             path: PathBuf::from(path.as_ref()),
             changelog: PathBuf::from("NEWS.md"),
+            loose: false,
         }
     }
 
@@ -211,7 +220,11 @@ impl Project {
             Some(version) => version.clone(),
             None => get_repo_latest_version(&gitdir)?,
         };
-        let sem_version = extract_semantic(&version)?;
+        let sem_version = if !self.loose {
+            extract_semantic(&version)?
+        } else {
+            &version
+        };
         let project = get_project_name(&url)
             .ok_or(anyhow!("Failed to extract project name from URL"))?;
         let mut path = PathBuf::from(&self.path);
@@ -228,6 +241,10 @@ impl Project {
 
     fn set_changelog<P: AsRef<Path>>(&mut self, filename: P) {
         self.changelog = PathBuf::from(filename.as_ref());
+    }
+
+    fn set_loose(&mut self, loose: bool) {
+        self.loose = loose;
     }
 }
 
@@ -379,6 +396,7 @@ fn main() -> Result<()> {
     if let Some(changelog) = opts.changelog {
         project.set_changelog(&changelog);
     }
+    project.set_loose(opts.loose);
 
     let info = project
         .release_info(&opts.release)
